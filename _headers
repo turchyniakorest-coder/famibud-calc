@@ -1,0 +1,8 @@
+# Cloudflare Pages: дані змінюються разом із файлом, тому html не кешуємо надовго,
+# а іконки й маніфест — навпаки.
+/index.html
+  Cache-Control: public, max-age=300
+/icon-*.png
+  Cache-Control: public, max-age=604800
+/manifest.json
+  Cache-Control: public, max-age=3600
