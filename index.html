@@ -48,6 +48,7 @@ h3{font-size:14px;font-weight:500;margin:16px 0 8px;color:#2D3E48}
     <div data-j="sealant">Герметик</div>
     <div data-j="cabin">Кабіна</div>
     <div data-j="sink">Умивальник</div>
+    <div data-j="walls">Стіни</div>
   </div>
 
   <div class="card" id="form-grout">
@@ -190,6 +191,26 @@ h3{font-size:14px;font-weight:500;margin:16px 0 8px;color:#2D3E48}
     <button onclick="calcSink()">РОЗРАХУВАТИ</button>
   </div>
 
+  <div class="card" id="form-walls" style="display:none">
+    <div class="tabs" style="margin-bottom:14px">
+      <div class="on" data-w="plaster" onclick="setWall('plaster')">Штукатурка</div>
+      <div data-w="putty" onclick="setWall('putty')">Шпаклівка</div>
+      <div data-w="paint" onclick="setWall('paint')">Фарба</div>
+    </div>
+    <div class="row">
+      <div><label>Площа, м²</label><input id="w_area" type="number" inputmode="decimal" value="40"></div>
+      <div id="w_thickwrap"><label>Товщина шару, мм</label><input id="w_thick" type="number" inputmode="decimal" value="10"></div>
+      <div id="w_coatswrap" style="display:none"><label>Шарів</label><select id="w_coats">
+        <option>1</option><option selected>2</option><option>3</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>Запас, %</label><input id="w_waste" type="number" inputmode="numeric" value="10"></div>
+      <div></div>
+    </div>
+    <div id="w_hint" class="why" style="margin:2px 0 12px"></div>
+    <button onclick="calcWalls()">РОЗРАХУВАТИ</button>
+  </div>
+
   <div id="out"></div>
 
   <div class="card" style="margin-top:20px">
@@ -227,9 +248,14 @@ const SEARCH = q => 'https://famibud.com.ua/search?query=' + encodeURIComponent(
 const uah = v => Math.round(v).toLocaleString('uk-UA') + ' ₴';
 const num = id => parseFloat(document.getElementById(id).value.replace(',','.'));
 
-document.querySelectorAll('.tabs div').forEach(el => el.onclick = () => {
-  document.querySelectorAll('.tabs div').forEach(x => x.classList.toggle('on', x === el));
-  ['grout','sealant','cabin','sink'].forEach(j =>
+// Беремо ТІЛЬКИ головні вкладки — ті, що мають data-j. Усередині форм є свої
+// смуги вкладок («Штукатурка / Шпаклівка / Фарба»), і без цього фільтра клік
+// по них теж рахувався перемиканням головних розділів: data-j там немає,
+// тому ховалися всі форми одразу.
+const MAIN_TABS = [...document.querySelectorAll('.tabs div')].filter(el => el.dataset.j);
+MAIN_TABS.forEach(el => el.onclick = () => {
+  MAIN_TABS.forEach(x => x.classList.toggle('on', x === el));
+  ['grout','sealant','cabin','sink','walls'].forEach(j =>
     document.getElementById('form-'+j).style.display = el.dataset.j === j ? '' : 'none');
   document.getElementById('out').innerHTML = '';
 });
@@ -957,15 +983,114 @@ const NO_BOWL = 'Індивідуальна за кресленням';
 document.getElementById('k_bowl').innerHTML =
   [`<option>${NO_BOWL}</option>`].concat(BOWLS.map(b => `<option>${b.n}</option>`)).join('');
 bowlInfo();
+const WALLS = {"plasters":[{"n":"HP старт 30кг, Knauf","v":"Knauf","p":425.0,"pack":30.0,"pu":"кг","a":"","c":{"u":"kg_m2_mm","min":1.0,"max":1.0,"lo":8,"hi":30},"src":"техлист Knauf HP Start, ~10 кг/м² при 10 мм"},{"n":"Ротбанд 30кг, Knauf","v":"Knauf","p":525.0,"pack":30.0,"pu":"кг","a":"","c":{"u":"kg_m2_mm","min":0.85,"max":0.85,"lo":5,"hi":50},"src":"knauf.ua, 8,5 кг/м² при 10 мм"},{"n":"Штукатурка, 30 кг × сірий","v":"","p":498.0,"pack":30.0,"pu":"кг","a":"","c":{"u":"kg_m2_mm","min":0.85,"max":0.85,"lo":8,"hi":50},"src":"за slug — Knauf MP 75, виробник у фіді не вказаний"},{"n":"Штукатурка Поліпласт Цементна, 25 кг × сірий","v":"Поліпласт","p":210.0,"pack":25.0,"pu":"кг","a":"ПЦШ-008","c":{"u":"kg_m2_mm","min":1.6,"max":1.6,"lo":10,"hi":20},"src":"ПЦШ-008, консенсус дилерів — звірити з TDS"},{"n":"Штукатурка Поліпласт Цементно, 25 кг × сірий","v":"Поліпласт","p":215.0,"pack":25.0,"pu":"кг","a":"ПЦШ-017","c":{"u":"kg_m2_mm","min":1.25,"max":1.3,"lo":5,"hi":20},"src":"poli-plast.ua, техопис PR-017 М"}],"putties":[{"n":"Гіпс шпаклювальний, 2 кг, Cekol","v":"Cekol","p":95.0,"pack":2.0,"pu":"кг","a":"GS-100","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гіпс шпаклювальний, 5 кг, Cekol","v":"Cekol","p":212.0,"pack":5.0,"pu":"кг","a":"GS-100","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гіпс шпаклювальний, 20 кг, Cekol","v":"Cekol","p":555.0,"pack":20.0,"pu":"кг","a":"GS-100","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна, 20 кг, Cekol","v":"Cekol","p":649.0,"pack":20.0,"pu":"кг","a":"GS-250","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна біла 20кг, Cekol","v":"Cekol","p":656.0,"pack":20.0,"pu":"кг","a":"GS-200","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна, 2 кг, Cekol","v":"Cekol","p":108.0,"pack":2.0,"pu":"кг","a":"GS-200","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна, 5 кг, Cekol","v":"Cekol","p":207.0,"pack":5.0,"pu":"кг","a":"GS-200","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна, 20 кг, білосніжний, Cekol","v":"Cekol","p":1114.0,"pack":20.0,"pu":"кг","a":"C-45 FINISZ","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна готова 1.8кг, Cekol","v":"Cekol","p":239.0,"pack":1.8,"pu":"кг","a":"F-16","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна, 20 кг, білий, Cekol","v":"Cekol","p":1267.0,"pack":20.0,"pu":"кг","a":"F-16","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Гладь шпаклювальна, 5 кг, білий, Cekol","v":"Cekol","p":540.0,"pack":5.0,"pu":"кг","a":"F-16","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Універсальна гладь шпаклювальна 20кг, Cekol","v":"Cekol","p":1075.0,"pack":20.0,"pu":"кг","a":"PRO X2","c":{"u":"kg_m2_mm","min":1.5,"max":1.5},"src":"фід магазину"},{"n":"Шпаклювальна маса, 20 кг, Cekol","v":"Cekol","p":1230.0,"pack":20.0,"pu":"кг","a":"PRO X1","c":null,"src":"фід магазину"},{"n":"Шпаклівка для швів, 5 кг, Cekol","v":"Cekol","p":503.0,"pack":5.0,"pu":"кг","a":"C-40","c":null,"src":"фід магазину"},{"n":"Шпаклівка для швів, 16 кг, Cekol","v":"Cekol","p":1310.0,"pack":16.0,"pu":"кг","a":"C-40","c":null,"src":"фід магазину"},{"n":"Шпаклівка для швів Готова, 1.5 кг, Cekol","v":"Cekol","p":274.0,"pack":1.5,"pu":"кг","a":"C-40M","c":null,"src":"фід магазину"},{"n":"Шпаклівка для швів Готова, 4.5 кг, Cekol","v":"Cekol","p":565.0,"pack":4.5,"pu":"кг","a":"C-40M","c":null,"src":"фід магазину"},{"n":"Шпаклівка для швів Готова, 15 кг, Cekol","v":"Cekol","p":1532.0,"pack":15.0,"pu":"кг","a":"C-40M","c":null,"src":"фід магазину"},{"n":"Шпаклівка Uniflot, 25 кг, Knauf","v":"Knauf","p":1520.0,"pack":25.0,"pu":"кг","a":"","c":null,"src":"фід магазину"},{"n":"Шпаклівка Uniflot, 5 кг, Knauf","v":"Knauf","p":325.0,"pack":5.0,"pu":"кг","a":"","c":null,"src":"фід магазину"},{"n":"Шпаклівка цементна безпіщана фасадна (Суперфініш), Поліпласт","v":"Поліпласт","p":692.0,"pack":null,"pu":"","a":"ПЦН-027","c":null,"src":"фід магазину"}],"paints":[{"n":"Еко Снежка 10 л ПОЛЬЩА","v":"Sniezka","p":1380.0,"pack":10.0,"pu":"л","a":"","c":{"u":"m2_per_l","min":9.0,"max":13.0},"src":"фід магазину"},{"n":"Еко Снежка 3 л ПОЛЬЩА","v":"Sniezka","p":510.0,"pack":3.0,"pu":"л","a":"","c":{"u":"m2_per_l","min":9.0,"max":13.0},"src":"фід магазину"},{"n":"Еко Снежка 5 л ПОЛЬЩА","v":"Sniezka","p":780.0,"pack":5.0,"pu":"л","a":"","c":{"u":"m2_per_l","min":9.0,"max":13.0},"src":"фід магазину"},{"n":"Еко Снежка Stsndart Fasad 3л (Укр) 4, 2кг","v":"Sniezka","p":570.0,"pack":4.2,"pu":"кг","a":"","c":{"u":"m2_per_l","min":9.0,"max":13.0},"src":"фід магазину"},{"n":"Еко Снежка Stsndart Fasad 5л (Укр) 7кг","v":"Sniezka","p":870.0,"pack":7.0,"pu":"кг","a":"","c":{"u":"m2_per_l","min":9.0,"max":13.0},"src":"фід магазину"},{"n":"Фарба біла 5л Dekoral ВАННА/КУХНЯ","v":"Dekoral","p":1100.0,"pack":5.0,"pu":"л","a":"","c":null,"src":"фід магазину"},{"n":"Фарба ізолювальна проти плям і патьоків Primacolor, 0,4 л","v":"Байріс","p":360.0,"pack":0.4,"pu":"л","a":"BAYRIS","c":null,"src":"фід магазину"},{"n":"Фарба ізолювальна проти плям і патьоків Primacolor, 0,75 л","v":"Байріс","p":560.0,"pack":0.75,"pu":"л","a":"BAYRIS","c":null,"src":"фід магазину"},{"n":"Фарба Латексна біла 5л Dekoral","v":"Dekoral","p":830.0,"pack":5.0,"pu":"л","a":"","c":null,"src":"фід магазину"}],"primers":[{"n":"Грунт глибокопроникний 1кг, Cekol","v":"Cekol","p":220.0,"pack":1.0,"pu":"кг","a":"DL-80","c":{"u":"m2_per_l","min":5.0,"max":15.0},"src":"фід магазину"},{"n":"Грунт глибокопроникний 10кг, Cekol","v":"Cekol","p":1500.0,"pack":10.0,"pu":"кг","a":"DL-80","c":{"u":"m2_per_l","min":5.0,"max":15.0},"src":"фід магазину"},{"n":"Грунт універсальний 10кг, Cekol","v":"Cekol","p":871.0,"pack":10.0,"pu":"кг","a":"DL-50","c":{"u":"m2_per_l","min":5.0,"max":15.0},"src":"фід магазину"},{"n":"Грунт універсальний 1кг, Cekol","v":"Cekol","p":196.0,"pack":1.0,"pu":"кг","a":"DL-50-01","c":{"u":"m2_per_l","min":5.0,"max":15.0},"src":"фід магазину"},{"n":"Ґрунтівка глибокопроникна протигрибкова DPA Grunt, 2 л","v":"Байріс","p":190.0,"pack":2.0,"pu":"л","a":"BAYRIS","c":null,"src":"фід магазину"},{"n":"Грунтівка Тіфенгрунт 10л, Knauf","v":"Knauf","p":585.0,"pack":10.0,"pu":"л","a":"","c":null,"src":"фід магазину"},{"n":"Ґрунтовка кварцева адгезійна, Поліпласт","v":"Поліпласт","p":1392.0,"pack":null,"pu":"","a":"ПГС-115","c":{"u":"kg_m2","min":0.4,"max":0.58},"src":"фід магазину"},{"n":"Ґрунтовка кварцева адгезійна, Поліпласт","v":"Поліпласт","p":811.0,"pack":null,"pu":"","a":"ПГС-115","c":{"u":"kg_m2","min":0.4,"max":0.58},"src":"фід магазину"},{"n":"Uni Grunt — Ґрунтовка глибокопроникна, Поліпласт","v":"Поліпласт","p":528.0,"pack":null,"pu":"","a":"ПГС-122","c":{"u":"l_m2","min":0.1,"max":0.2},"src":"фід магазину"},{"n":"Uni Grunt — Ґрунтовка глибокопроникна, Поліпласт","v":"Поліпласт","p":330.0,"pack":null,"pu":"","a":"ПГС-122","c":{"u":"l_m2","min":0.1,"max":0.2},"src":"фід магазину"},{"n":"Ґрунтуюча фарба для підготовки основи, Поліпласт","v":"Поліпласт","p":657.0,"pack":null,"pu":"","a":"ПГС-116","c":{"u":"kg_m2","min":0.2,"max":0.5},"src":"фід магазину"},{"n":"Ґрунтівка глибокопроникна Ceresit CT 17 Super, 10 л","v":"Ceresit","p":770.0,"pack":10.0,"pu":"л","a":"Ceresit","c":null,"src":"фід магазину"},{"n":"Ґрунтівка","v":"Ceresit","p":610.0,"pack":null,"pu":"","a":"Ceresit","c":null,"src":"фід магазину"},{"n":"Ґрунтівка глибокопроникна Ceresit CT 17 Super, 2 л","v":"Ceresit","p":240.0,"pack":2.0,"pu":"л","a":"Ceresit","c":null,"src":"фід магазину"},{"n":"Ґрунтівка глибокопроникна Ceresit CT 17, 2 л","v":"Ceresit","p":220.0,"pack":2.0,"pu":"л","a":"Ceresit","c":null,"src":"фід магазину"},{"n":"Ґрунтівка глибокопроникна Ceresit CT 17 Super, 5 л","v":"Ceresit","p":450.0,"pack":5.0,"pu":"л","a":"Ceresit","c":null,"src":"фід магазину"},{"n":"Ґрунтівка глибокопроникна Ceresit CT 17, 5 л","v":"Ceresit","p":370.0,"pack":5.0,"pu":"л","a":"Ceresit","c":null,"src":"фід магазину"}]};
+
+// ── штукатурка, шпаклівка, фарба ──────────────────────────────────────
+// Одиниці норм у каталозі різні, тому кожна обробляється окремо:
+//   kg_m2_mm — кг на м² на кожен мм шару (штукатурки, шпаклівки)
+//   m2_per_l — скільки м² покриває літр (фарби, ґрунтовки)
+//   kg_m2 / l_m2 — витрата на м² без прив'язки до товщини
+// Норми штукатурок у фіді відсутні — вони взяті з техлистів виробників,
+// джерело показано в результаті, щоб цифру можна було перевірити.
+let wallMode = 'plaster';
+const WALL_CFG = {
+  plaster: {list:'plasters', thick:true, def:10,
+    hint:'Шар рахують по маяках: для гіпсових зазвичай 10–15 мм, для цементних більше.'},
+  putty:   {list:'putties',  thick:true, def:2,
+    hint:'Під фарбу зазвичай 1–2 мм за прохід. Шпаклівки для швів ГК рахуються в іншій вкладці.'},
+  paint:   {list:'paints',   thick:false,
+    hint:'Витрата вказана як покриття з літра за один шар. Під фарбування рахуйте два шари.'},
+};
+function setWall(m) {
+  wallMode = m;
+  document.querySelectorAll('#form-walls .tabs div').forEach(el =>
+    el.classList.toggle('on', el.dataset.w === m));
+  const cfg = WALL_CFG[m];
+  document.getElementById('w_thickwrap').style.display  = cfg.thick ? '' : 'none';
+  document.getElementById('w_coatswrap').style.display  = cfg.thick ? 'none' : '';
+  document.getElementById('w_hint').textContent = cfg.hint;
+  // Шпаклівка й штукатурка живуть у різних порядках товщини: 10 мм шпаклівки
+  // це 660 кг матеріалу, чого ніхто не робить. Підставляємо типове значення.
+  if (cfg.def) document.getElementById('w_thick').value = cfg.def;
+  document.getElementById('out').innerHTML = '';
+}
+
+function calcWalls() {
+  const cfg = WALL_CFG[wallMode];
+  const area = num('w_area'), waste = 1 + num('w_waste')/100;
+  const thick = cfg.thick ? num('w_thick') : 0;
+  const coats = cfg.thick ? 1 : parseInt(document.getElementById('w_coats').value, 10);
+  if (!(area > 0) || (cfg.thick && !(thick > 0))) {
+    document.getElementById('out').innerHTML =
+      '<div class="card" style="color:#B03A2E">Заповніть площу' + (cfg.thick ? ' і товщину шару' : '') + '</div>';
+    return;
+  }
+  const items = WALLS[cfg.list].filter(x => x.c && x.pack > 0).map(x => {
+    // Частина фарб фасована в кілограмах, а покриття вказане на літр.
+    // Літраж є в назві («3л (Укр) 4,2кг») — беремо звідти, інакше рахунок хибний.
+    if (x.c.u === 'm2_per_l' && (x.pu || '').startsWith('кг')) {
+      const m = (x.n || '').match(/(\d+[.,]?\d*)\s*л/i);
+      if (m) return {...x, pack: parseFloat(m[1].replace(',', '.')), pu: 'л'};
+      return null;
+    }
+    return x;
+  }).filter(Boolean);
+  const rows = items.map(x => {
+    const c = x.c;
+    let lo, hi, unit;
+    if (c.u === 'kg_m2_mm') { lo = area*thick*c.min*waste; hi = area*thick*c.max*waste; unit = 'кг'; }
+    else if (c.u === 'kg_m2') { lo = area*c.min*waste; hi = area*c.max*waste; unit = 'кг'; }
+    else if (c.u === 'l_m2')  { lo = area*c.min*waste; hi = area*c.max*waste; unit = 'л'; }
+    else { // m2_per_l — більше покриття означає меншу витрату
+      lo = area*coats/c.max*waste; hi = area*coats/c.min*waste; unit = 'л';
+    }
+    // Шар поза межами, які допускає виробник — товар не пропонуємо.
+    if (c.lo && thick && thick < c.lo) return null;
+    if (c.hi && thick && thick > c.hi) return null;
+    const packs = Math.max(1, Math.ceil(hi / x.pack));
+    return {...x, lo, hi, unit, packs, total: packs*x.p, left: packs*x.pack - hi};
+  }).filter(Boolean).sort((a,b) => a.total - b.total);
+
+  if (!rows.length) {
+    document.getElementById('out').innerHTML =
+      `<div class="card">Для цих умов у наявності немає позицій із відомою нормою.</div>`;
+    return;
+  }
+  const r0 = rows[0];
+  const amount = r0.lo.toFixed(1).replace('.', ',') + '–' + r0.hi.toFixed(1).replace('.', ',') + ' ' + r0.unit;
+  let h = `<div class="card"><div class="mut">Потрібно матеріалу</div>
+    <div class="big">${rows.every(r => Math.abs(r.hi - r0.hi) < 0.05) ? amount
+        : Math.min(...rows.map(r=>r.lo)).toFixed(1).replace('.',',') + '–' +
+          Math.max(...rows.map(r=>r.hi)).toFixed(1).replace('.',',') + ' ' + r0.unit}</div>
+    ${rows.every(r => Math.abs(r.hi - r0.hi) < 0.05) ? '' :
+      '<div class="why">розкид через різні норми: гіпсові витрачаються майже вдвічі економніше за цементні</div>'}
+    <div class="mut">${cfg.thick ? `${area} м² · шар ${thick} мм` : `${area} м² · ${coats} шар${coats>1?'и':''}`} · запас ${num('w_waste')}%</div></div>`;
+
+  h += `<h3>Підходить ${rows.length} позиц${rows.length===1?'ія':rows.length<5?'ії':'ій'}</h3>`;
+  rows.forEach((r, i) => {
+    h += `<div class="item ${i===0?'best':''}">
+      ${i===0?'<div class="tag">найдешевше</div>':''}
+      <div class="top"><span>${r.n}</span><span class="price">${uah(r.total)}</span></div>
+      <div class="mut">${r.packs} × ${r.pack} ${r.pu || (r.unit==='л'?'л':'кг')} · потрібно
+        ${r.lo.toFixed(1).replace('.',',')}–${r.hi.toFixed(1).replace('.',',')} ${r.unit} ·
+        зайве ${r.left.toFixed(1).replace('.',',')} ${r.unit}</div>
+      ${r.v ? `<div class="mut">${r.v}</div>` : ''}
+      <div class="why">норма: ${r.src}</div>
+      <a class="go" href="${SEARCH(r.a && r.a.length>=3 ? r.a : r.n.split(',')[0])}" target="_blank">Відкрити</a>
+    </div>`;
+  });
+
+  const noNorm = WALLS[cfg.list].filter(x => !x.c).length;
+  h += `<div class="foot">Ціни з вивантаження ${D.feed}.` +
+       (noNorm ? ` Ще ${noNorm} позиц${noNorm===1?'ія':noNorm<5?'ії':'ій'} у наявності без вказаної норми — не показано.` : '') +
+       `</div>`;
+  document.getElementById('out').innerHTML = h;
+}
+setWall('plaster');
 </script>
 <script>
-// Реєструємо service worker — саме він робить застосунок доступним без мережі.
-// Файл:// його не підтримує, тому перевіряємо протокол: локально відкритий
-// файл і так самодостатній.
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  });
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
 }
 </script>
 </body></html>
