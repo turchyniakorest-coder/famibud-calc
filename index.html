@@ -958,4 +958,14 @@ document.getElementById('k_bowl').innerHTML =
   [`<option>${NO_BOWL}</option>`].concat(BOWLS.map(b => `<option>${b.n}</option>`)).join('');
 bowlInfo();
 </script>
+<script>
+// Реєструємо service worker — саме він робить застосунок доступним без мережі.
+// Файл:// його не підтримує, тому перевіряємо протокол: локально відкритий
+// файл і так самодостатній.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
 </body></html>
