@@ -573,6 +573,26 @@ function calcGrout() {
 }
 
 // ── герметик ───────────────────────────────────────────────────────────
+// Запит на конкретний герметик, а не на слово «герметик»: воно давало
+// 88 збігів разом із пістолетами й очисниками. Артикул є у 47 із 66
+// позицій і веде на один-два товари; для решти беремо фрагмент назви.
+function sealQuery(s) {
+  // Артикул беремо лише якщо він схожий на артикул: у частини Soudal
+  // у цьому полі стоїть просто назва виробника, і запит «Soudal» давав
+  // 25 збігів разом із пінами й очисниками.
+  const a = (s.a || '').trim();
+  const looksLikeCode = a.length >= 3 && /\d/.test(a) &&
+                        a.toLowerCase() !== (s.v || '').toLowerCase();
+  if (looksLikeCode) return a;
+  // Якщо назва до коми однакова в кількох товарів («Герметик Soudal
+  // Клей-герметик»), додаємо об'єм і колір — вони й відрізняють позиції.
+  const parts = (s.n || '').split(',').map(x => x.trim()).filter(Boolean);
+  const head = parts[0] || '';
+  if (head.length < 10) return s.n || '';
+  const extra = parts.slice(1).join(' ').replace(/×/g, ' ').trim();
+  return extra ? `${head} ${extra}`.replace(/\s+/g, ' ').trim() : head;
+}
+
 function calcSealant() {
   const L=num('s_len'), W=num('s_w'),
         zone=document.getElementById('s_zone').value,
@@ -614,7 +634,7 @@ function calcSealant() {
       h += `<div class="item"><div class="top"><span>${s.n}</span>
         <span class="price">${s.qty} шт · ${uah(s.total)}</span></div>
         <div class="mut">${s.ml} мл × ${s.qty} · ${s.mpc.toFixed(1)} м з картриджа · зайве ${Math.round(s.left)} мл</div>
-        <a class="go alt" href="${SEARCH('герметик')}" target="_blank">Дивитися герметики</a></div>`;
+        <a class="go alt" href="${SEARCH(sealQuery(s))}" target="_blank">Відкрити</a></div>`;
     });
   });
   if (fit.length) {
@@ -821,7 +841,9 @@ function setCabinMode(m) {
 
 // ── монтаж душової кабіни Radaway ──────────────────────────────────────
 const CABIN = {
-  installShare: 0.10,   // монтаж — 10% від вартості кабіни
+  installShare: 0.12,   // монтаж — 12% від вартості кабіни
+  installMin: 6000,     // але не менше 6000 грн: виїзд, робота й витрачений
+                        // час однакові навіть на дешевій кабіні
   holeGres: 120,        // отвір у керамограніті
   consumables: 200,     // розхідники
   survey: 2000,         // заміри в межах Львова, від
@@ -924,7 +946,11 @@ function calcCabin(mode) {
       '<div class="card" style="color:#B03A2E">Вкажіть вартість кабіни</div>';
     return;
   }
-  const install = price * CABIN.installShare;
+  // Відсоток працює лише вище мінімалки: 12% від кабіни за 30 000 ₴ це 3 600,
+  // але дешевше за 6 000 монтаж не коштує в жодному разі.
+  const installRaw = price * CABIN.installShare;
+  const install = Math.max(installRaw, CABIN.installMin);
+  const belowMin = installRaw < CABIN.installMin;
   const drill = tile === 'gres' ? holes * CABIN.holeGres : 0;
   const total = install + drill + seal + CABIN.consumables;
 
@@ -934,10 +960,15 @@ function calcCabin(mode) {
 
   let h = `<div class="card"><div class="mut">${cfg}</div>
     <div class="big">${uah(total)}</div>
-    <div class="mut">монтаж, без вартості самої кабіни</div></div>`;
+    <div class="mut">монтаж, без вартості самої кабіни</div>
+    <div class="why" style="color:#B26B00;margin-top:6px">Ціна орієнтовна. Остаточну називає монтажник
+      після заміру: вона залежить від стану стін, підводок і доступу.</div>
+    <div class="why">Розрахунок дійсний для кабін Radaway. Для інших виробників умови монтажу
+      узгоджуються окремо.</div></div>`;
 
   h += `<div class="card">
-    ${line('Робота, 10% від кабіни', install)}
+    ${line(belowMin ? 'Робота, мінімальна вартість' : 'Робота, 12% від кабіни', install,
+        belowMin ? `12% від кабіни це ${uah(installRaw)}, але монтаж не буває дешевшим за ${uah(CABIN.installMin)}` : '')}
     ${tile === 'gres'
       ? line(`Отвори, ${holes} × ${CABIN.holeGres} ₴`, drill, 'у керамограніті свердління платне')
       : line('Отвори', 0, 'у глиняній плитці безкоштовно')}
@@ -958,7 +989,8 @@ function calcCabin(mode) {
     `Вартість кабіни: ${uah(price)}`,
     `Плитка: ${tile === 'gres' ? 'керамограніт, отворів ' + holes : 'глиняна'}`,
     `Герметик: ${document.getElementById('c_seal').selectedOptions[0].text}`,
-    `Монтаж орієнтовно: ${uah(total)}`,
+    `Монтаж орієнтовно: ${uah(total)} — ціна попередня, до заміру`,
+    'Розрахунок для кабіни Radaway',
     fami ? 'Кабіна куплена у Famibud' : 'Кабіна куплена не у Famibud',
   ].join('\n');
   window.__req = req;
@@ -1606,7 +1638,7 @@ document.getElementById('pf_obj').innerHTML =
 document.getElementById('pf_group').innerHTML =
   Object.keys(PROF).map(k => `<option>${k}</option>`).join('');
 profInfo();
-const GLUE_SETS = {"Плитка":[{"a":"ПП-015","n":"BLANCO","full":"BLANCO","p":679.0,"pack":25.0,"norm":1.3,"tags":["мармур","камінь","білий"],"lo":2,"hi":10,"perMm":true},{"a":"ПП-016","n":"Blanco Ultra","full":"Blanco Ultra","p":430.0,"pack":10.0,"norm":1.6,"tags":["мармур","мозаїка","білий","тонкий"],"lo":1,"hi":6,"perMm":true},{"a":"ПП-021","n":"MAXI","full":"MAXI","p":706.0,"pack":25.0,"norm":1.2,"tags":["товстий шар","великий формат","еластичний"],"lo":3,"hi":30,"perMm":true},{"a":"ПП-010","n":"PROFESSIONAL","full":"PROFESSIONAL","p":255.0,"pack":25.0,"norm":1.5,"tags":["кераміка","керамограніт","камінь"],"lo":2,"hi":10,"perMm":true},{"a":"ПП-020","n":"BIG FORMAT","full":"BIG FORMAT","p":791.0,"pack":20.0,"norm":1.2,"tags":["великий формат","керамограніт"],"lo":3,"hi":15,"perMm":true},{"a":"ПП-019","n":"FLEX","full":"FLEX","p":665.0,"pack":25.0,"norm":1.3,"tags":["еластичний","великий формат","тепла підлога","зовні","стара плитка"],"lo":2,"hi":15,"perMm":true},{"a":"ПП-012","n":"ELAST","full":"ELAST","p":439.0,"pack":25.0,"norm":1.3,"tags":["кераміка","керамограніт","еластичний","тепла підлога","зовні"],"lo":2,"hi":10,"perMm":true},{"a":"400E","n":"Sopro №1 400 EXTRA","full":"Sopro №1 400 EXTRA, C2TE S1","p":1202.0,"pack":22.5,"norm":1.0,"perMm":true,"lo":1,"hi":20,"tags":["кераміка","керамограніт","мозаїка","великий формат","еластичний","тепла підлога","зовні","стара плитка","камінь"],"warn":"сірий: під світлим мармуром може проступати, там краще білий"}],"Утеплювач":[{"a":"DOPS Term Fix","n":"DOPS THERMFIX","full":"DOPS THERMFIX","p":277.0,"pack":25.0,"norm":5.0,"tags":[],"lo":1,"hi":30,"perMm":false,"raw":"для кріплення утеплювача – від 5 кг/м2, улаштування армованого шару – ","note":"5 кг/м² на кріплення плит, ще 3,5–4 кг/м² на армувальний шар"}],"Газобетонні блоки":[{"a":"DOPS","n":"DOPS Block","full":"DOPS Block","p":212.0,"pack":null,"norm":1.5,"tags":[],"lo":1,"hi":30,"perMm":true,"raw":"від 1,5 кг/м2 на 1 мм товщини шару нанесення"}],"Печі й каміни":[{"a":"ПП-074","n":"Жаростійкий","full":"Клейова суміш жаростійка для кладки печей і камінів, Поліпласт","p":536.0,"pack":null,"norm":3.0,"tags":[],"lo":1,"hi":30,"perMm":false,"raw":"~2,0-3,0 кг/м²","note":"2–3 кг/м² залежно від товщини шва"}]};
+const GLUE_SETS = {"Плитка":[{"a":"ПП-015","n":"BLANCO","full":"BLANCO","p":679.0,"pack":25.0,"norm":1.3,"tags":["мармур","камінь","білий"],"lo":2,"hi":10,"perMm":true},{"a":"ПП-016","n":"Blanco Ultra","full":"Blanco Ultra","p":430.0,"pack":10.0,"norm":1.6,"tags":["мармур","мозаїка","білий","тонкий"],"lo":1,"hi":6,"perMm":true},{"a":"ПП-021","n":"MAXI","full":"MAXI","p":706.0,"pack":25.0,"norm":1.2,"tags":["товстий шар","великий формат","еластичний"],"lo":3,"hi":30,"perMm":true},{"a":"ПП-010","n":"PROFESSIONAL","full":"PROFESSIONAL","p":255.0,"pack":25.0,"norm":1.5,"tags":["кераміка","керамограніт","камінь"],"lo":2,"hi":10,"perMm":true},{"a":"ПП-020","n":"BIG FORMAT","full":"BIG FORMAT","p":791.0,"pack":20.0,"norm":1.2,"tags":["великий формат","керамограніт"],"lo":3,"hi":15,"perMm":true},{"a":"ПП-019","n":"FLEX","full":"FLEX","p":665.0,"pack":25.0,"norm":1.3,"tags":["еластичний","великий формат","тепла підлога","зовні","стара плитка"],"lo":2,"hi":15,"perMm":true},{"a":"ПП-012","n":"ELAST","full":"ELAST","p":439.0,"pack":25.0,"norm":1.3,"tags":["кераміка","керамограніт","еластичний","тепла підлога","зовні"],"lo":2,"hi":10,"perMm":true,"maxTile":800},{"a":"","n":"Sopro №1 400 EXTRA","full":"Sopro №1 400 EXTRA, C2TE S1","p":1202.0,"pack":22.5,"norm":1.0,"perMm":true,"lo":1,"hi":20,"tags":["кераміка","керамограніт","мозаїка","великий формат","еластичний","тепла підлога","зовні","стара плитка","камінь"],"q":"400 EXTRA"}],"Утеплювач":[{"a":"DOPS Term Fix","n":"DOPS THERMFIX","full":"DOPS THERMFIX","p":277.0,"pack":25.0,"norm":5.0,"tags":[],"lo":1,"hi":30,"perMm":false,"raw":"для кріплення утеплювача – від 5 кг/м2, улаштування армованого шару – ","note":"5 кг/м² на кріплення плит, ще 3,5–4 кг/м² на армувальний шар"}],"Газобетонні блоки":[{"a":"DOPS","n":"DOPS Block","full":"DOPS Block","p":212.0,"pack":null,"norm":1.5,"tags":[],"lo":1,"hi":30,"perMm":true,"raw":"від 1,5 кг/м2 на 1 мм товщини шару нанесення"}],"Печі й каміни":[{"a":"ПП-074","n":"Жаростійкий","full":"Клейова суміш жаростійка для кладки печей і камінів, Поліпласт","p":536.0,"pack":null,"norm":3.0,"tags":[],"lo":1,"hi":30,"perMm":false,"raw":"~2,0-3,0 кг/м²","note":"2–3 кг/м² залежно від товщини шва"}]};
 
 // ── клей для плитки ───────────────────────────────────────────────────
 // Тут головне питання не «скільки», а «який». Помилка з вибором коштує
@@ -1682,7 +1714,19 @@ function glueCustom() {
   glueInfo();
 }
 
-function glueReject(g, mat, cond, layer) {
+// Довша сторона плитки в міліметрах — потрібна для клеїв з обмеженням
+// по формату. Для готових форматів беремо верхню межу діапазону.
+const FMT_MAX = {
+  'До 10×10 см, мозаїка': 100, '20×30, 30×30 см': 300, '30×60 см': 600,
+  '60×60 см': 600, '60×120 см і більше': 1200, 'Великий формат, нерівна основа': 1800,
+};
+function tileMaxMm() {
+  const f = document.getElementById('gl_fmt').value;
+  if (f === FMT_CUSTOM) return Math.max(num('gl_ta') || 0, num('gl_tb') || 0);
+  return FMT_MAX[f] || 0;
+}
+
+function glueReject(g, mat, cond, layer, tileMm) {
   if (mat === 'Мармур або натуральний камінь' && !g.tags.includes('мармур') && !g.tags.includes('білий'))
     return 'сірий клей проступає плямами крізь світлий камінь';
   if (mat === 'Мозаїка' && !g.tags.includes('мозаїка') && !g.tags.includes('тонкий'))
@@ -1693,6 +1737,10 @@ function glueReject(g, mat, cond, layer) {
     return 'для вулиці потрібен морозостійкий еластичний';
   if (cond === 'Поверх старої плитки' && !g.tags.includes('стара плитка') && !g.tags.includes('еластичний'))
     return 'на стару плитку кладуть еластичний';
+  // Виробник обмежує формат: на більшій плитці шар працює інакше й клей
+  // не тримає вагу. ELAST — до 80×80 см.
+  if (g.maxTile && tileMm > g.maxTile)
+    return `виробник обмежує формат ${g.maxTile/10}×${g.maxTile/10} см, у вас ${Math.round(tileMm/10)} см`;
   if (layer < g.lo) return `шар ${layer} мм менший за мінімальний ${g.lo} мм`;
   if (layer > g.hi) return `шар ${layer} мм більший за максимальний ${g.hi} мм`;
   return null;
@@ -1714,7 +1762,7 @@ function glueInfo() {
   const mat = document.getElementById('gl_mat').value;
   const cond = document.getElementById('gl_cond').value;
   const layer = num('gl_layer');
-  const ok = list.filter(g => !glueReject(g, mat, cond, layer));
+  const ok = list.filter(g => !glueReject(g, mat, cond, layer, tileMaxMm()));
   el.textContent = `Шар ${layer} мм. Підходить ${ok.length} ` +
     `${plural(ok.length,'клей','клеї','клеїв')} із ${list.length} у наявності.`;
 }
@@ -1730,10 +1778,10 @@ function calcGlue() {
   }
   const use = document.getElementById('gl_use').value;
   const list = GLUE_SETS[use] || [];
-  const fit = [], rejected = [];
+  const fit = [];
   for (const g of list) {
-    const why = use === 'Плитка' ? glueReject(g, mat, cond, layer) : null;
-    if (why) { rejected.push({...g, why}); continue; }
+    const why = use === 'Плитка' ? glueReject(g, mat, cond, layer, tileMaxMm()) : null;
+    if (why) continue;                 // непридатні просто не показуємо
     const kg = g.perMm ? area * layer * g.norm * waste : area * g.norm * waste;
     // Фасування частини позицій у фіді немає — тоді показуємо лише кілограми,
     // без кількості мішків і без підсумкової ціни, щоб не вигадувати.
@@ -1765,19 +1813,10 @@ function calcGlue() {
           ? `${g.bags} × ${g.pack} кг · потрібно ${g.kg.toFixed(1).replace('.',',')} кг · зайве ${g.left.toFixed(1).replace('.',',')} кг`
           : `потрібно ${g.kg.toFixed(1).replace('.',',')} кг · фасування уточніть у магазині`}</div>
         <div class="why">${g.norm} кг/м²${g.perMm ? ' на 1 мм' : ''}${g.perMm ? ` · шар ${g.lo}–${g.hi} мм` : ''} · ${g.full}</div>
-        ${g.warn ? `<div class="why" style="color:#B26B00">${g.warn}</div>` : ''}
         ${g.note ? `<div class="why">${g.note}</div>` : ''}
-        <a class="go" href="${SEARCH(g.a)}" target="_blank">Відкрити</a>
+        <a class="go" href="${SEARCH(g.q || g.a || g.full.split(',')[0])}" target="_blank">Відкрити</a>
       </div>`;
     });
-  }
-  if (rejected.length) {
-    h += `<h3>Не підходить</h3><div class="item">`;
-    rejected.forEach(g => {
-      h += `<div class="top" style="margin-top:6px"><span class="mut">${g.n}</span></div>
-            <div class="why">${g.why}</div>`;
-    });
-    h += `</div>`;
   }
   if (fit.length) {
     setPending(`Клей ${fit[0].n}`,
