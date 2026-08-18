@@ -7,7 +7,7 @@
 //
 // ВАЖЛИВО: при кожному оновленні index.html піднімайте номер версії нижче,
 // інакше люди зі старою копією не побачать змін.
-const VERSION = 'famibud-v21';
+const VERSION = 'famibud-v22';
 const ASSETS = [
   './',
   './index.html',
